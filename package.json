@@ -1,0 +1,12 @@
+{
+  "name": "store-management",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "start": "cd backend && node app.js",
+    "install-all": "npm install --prefix backend && npm install --prefix frontend"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

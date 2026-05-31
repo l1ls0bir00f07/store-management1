@@ -5,16 +5,107 @@ import ToastContainer from '../components/common/Toast';
 
 const fmt = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
 
+// ── Discount Modal ────────────────────────────────────────────────────────────
+function DiscountModal({ total, discount, onApply, onClose }) {
+  const [value, setValue] = useState(discount > 0 ? String(discount) : '');
+  const [mode, setMode] = useState('sum'); // 'sum' | 'percent'
+
+  const numVal   = parseFloat(value) || 0;
+  const absolute = mode === 'percent' ? Math.round((numVal / 100) * total) : numVal;
+  const finalTotal = Math.max(0, total - absolute);
+  const isValid  = absolute >= 0 && absolute <= total;
+
+  const handleApply = () => {
+    if (!isValid) return;
+    onApply(absolute);
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+    }}>
+      <div className="card" style={{ width: 360, padding: 28 }}>
+        <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 20 }}>🏷️ Скидка покупателю</div>
+
+        {/* mode toggle */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--bg2)', padding: 4, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+          {[['sum', 'Сумма (сум)'], ['percent', 'Процент (%)']].map(([key, label]) => (
+            <button key={key} onClick={() => { setMode(key); setValue(''); }}
+              className="btn btn-sm"
+              style={{ flex: 1, justifyContent: 'center', background: mode === key ? 'var(--accent)' : 'transparent', color: mode === key ? '#fff' : 'var(--text2)' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="form-group" style={{ marginBottom: 16 }}>
+          <label className="form-label">{mode === 'percent' ? 'Скидка (%)' : 'Скидка (сум)'}</label>
+          <input
+            className="form-input"
+            type="number"
+            min="0"
+            max={mode === 'percent' ? 100 : total}
+            placeholder={mode === 'percent' ? 'Например: 10' : 'Например: 5000'}
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            autoFocus
+            style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 18 }}
+          />
+          {!isValid && numVal > 0 && (
+            <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 4 }}>
+              Скидка не может превышать сумму заказа
+            </div>
+          )}
+        </div>
+
+        {/* Preview */}
+        <div style={{ background: 'var(--bg2)', borderRadius: 'var(--radius-sm)', padding: '14px 16px', marginBottom: 20, border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: 'var(--text2)', fontSize: 13 }}>
+            <span>Итого без скидки:</span>
+            <span className="mono">{fmt(total)}</span>
+          </div>
+          {absolute > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: 'var(--red)', fontSize: 13 }}>
+              <span>Скидка:</span>
+              <span className="mono">− {fmt(absolute)}</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 17, borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
+            <span>К оплате:</span>
+            <span className="mono text-green">{fmt(finalTotal)}</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          {discount > 0 && (
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => onApply(0)}>
+              Убрать скидку
+            </button>
+          )}
+          <button className="btn btn-ghost" style={{ flex: 1 }} onClick={onClose}>Отмена</button>
+          <button className="btn btn-success" style={{ flex: 1 }} onClick={handleApply} disabled={!isValid || numVal === 0}>
+            Применить
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function SalesPage() {
-  const [products, setProducts] = useState([]);
-  const [sales, setSales] = useState([]);
-  const [cart, setCart] = useState([]);
-  const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState('pos');
-  const [loading, setLoading] = useState(false);
-  const [historyFrom, setHistoryFrom] = useState('');
-  const [historyTo, setHistoryTo] = useState('');
-  const { toasts, success, error } = useToast();
+  const [products, setProducts]         = useState([]);
+  const [sales, setSales]               = useState([]);
+  const [cart, setCart]                 = useState([]);
+  const [search, setSearch]             = useState('');
+  const [activeTab, setActiveTab]       = useState('pos');
+  const [loading, setLoading]           = useState(false);
+  const [historyFrom, setHistoryFrom]   = useState('');
+  const [historyTo, setHistoryTo]       = useState('');
+  const [discount, setDiscount]         = useState(0);
+  const [showDiscount, setShowDiscount] = useState(false);
+  const { toasts, success, error }      = useToast();
 
   const loadProducts = useCallback(() => {
     productsApi.getAll({ search }).then(r => setProducts(r.data));
@@ -23,7 +114,7 @@ export default function SalesPage() {
   const loadSales = useCallback(() => {
     const params = {};
     if (historyFrom) params.from = historyFrom;
-    if (historyTo) params.to = historyTo;
+    if (historyTo)   params.to   = historyTo;
     salesApi.getAll(params).then(r => setSales(r.data));
   }, [historyFrom, historyTo]);
 
@@ -48,16 +139,22 @@ export default function SalesPage() {
 
   const removeFromCart = (product_id) => setCart(prev => prev.filter(i => i.product_id !== product_id));
 
-  const total = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const totalProfit = cart.reduce((s, i) => s + (i.price - i.purchase_price) * i.quantity, 0);
+  const rawTotal   = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+  const finalTotal = Math.max(0, rawTotal - discount);
+  const totalProfit = cart.reduce((s, i) => s + (i.price - i.purchase_price) * i.quantity, 0) - discount;
+
+  const clearCart = () => { setCart([]); setDiscount(0); };
 
   const completeSale = async () => {
     if (!cart.length) return;
     setLoading(true);
     try {
-      await salesApi.create({ items: cart.map(i => ({ product_id: i.product_id, quantity: i.quantity })) });
-      success(`Продажа завершена! Сумма: ${fmt(total)} · Прибыль: ${fmt(totalProfit)}`);
-      setCart([]);
+      await salesApi.create({ items: cart.map(i => ({ product_id: i.product_id, quantity: i.quantity })), discount });
+      const msg = discount > 0
+        ? `Продажа завершена! Сумма: ${fmt(finalTotal)} (скидка: ${fmt(discount)})`
+        : `Продажа завершена! Сумма: ${fmt(finalTotal)}`;
+      success(msg);
+      clearCart();
       loadProducts();
     } catch (e) { error(e.response?.data?.error || 'Ошибка продажи'); }
     finally { setLoading(false); }
@@ -72,6 +169,15 @@ export default function SalesPage() {
   return (
     <div>
       <ToastContainer toasts={toasts} />
+      {showDiscount && (
+        <DiscountModal
+          total={rawTotal}
+          discount={discount}
+          onApply={(val) => { setDiscount(val); setShowDiscount(false); }}
+          onClose={() => setShowDiscount(false)}
+        />
+      )}
+
       <div className="page-header">
         <div className="page-title">Продажа</div>
       </div>
@@ -130,7 +236,7 @@ export default function SalesPage() {
           <div className="card" style={{ position: 'sticky', top: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               Корзина
-              {cart.length > 0 && <button className="btn btn-ghost btn-sm" onClick={() => setCart([])}>Очистить</button>}
+              {cart.length > 0 && <button className="btn btn-ghost btn-sm" onClick={clearCart}>Очистить</button>}
             </div>
 
             {cart.length === 0 && (
@@ -161,17 +267,50 @@ export default function SalesPage() {
 
             {cart.length > 0 && (
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ color: 'var(--text2)' }}>Итого:</span>
-                  <span className="mono" style={{ fontWeight: 800, fontSize: 18, color: 'var(--text)' }}>{fmt(total)}</span>
+
+                {/* Totals */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ color: 'var(--text2)' }}>Сумма:</span>
+                  <span className="mono" style={{ color: discount > 0 ? 'var(--text3)' : 'var(--text)', textDecoration: discount > 0 ? 'line-through' : 'none', fontSize: 15 }}>{fmt(rawTotal)}</span>
                 </div>
+
+                {discount > 0 && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ color: 'var(--red)', fontSize: 13 }}>Скидка:</span>
+                      <span className="mono" style={{ color: 'var(--red)', fontSize: 13 }}>− {fmt(discount)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontWeight: 700 }}>Итого:</span>
+                      <span className="mono" style={{ fontWeight: 800, fontSize: 18, color: 'var(--text)' }}>{fmt(finalTotal)}</span>
+                    </div>
+                  </>
+                )}
+
+                {discount === 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontWeight: 700 }}>Итого:</span>
+                    <span className="mono" style={{ fontWeight: 800, fontSize: 18 }}>{fmt(rawTotal)}</span>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
                   <span style={{ color: 'var(--text3)', fontSize: 12 }}>Прибыль:</span>
-                  <span className="mono text-green" style={{ fontSize: 13 }}>{fmt(totalProfit)}</span>
+                  <span className="mono" style={{ fontSize: 13, color: totalProfit >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmt(totalProfit)}</span>
                 </div>
+
+                {/* Discount button */}
+                <button
+                  className="btn btn-ghost"
+                  style={{ width: '100%', justifyContent: 'center', marginBottom: 8, borderColor: discount > 0 ? 'var(--red)' : 'var(--border)', color: discount > 0 ? 'var(--red)' : 'var(--text2)' }}
+                  onClick={() => setShowDiscount(true)}
+                >
+                  🏷️ {discount > 0 ? `Скидка: −${fmt(discount)}` : 'Добавить скидку'}
+                </button>
+
                 <button className="btn btn-success" style={{ width: '100%', justifyContent: 'center', padding: '13px' }}
                   onClick={completeSale} disabled={loading}>
-                  {loading ? 'Оформление...' : `✓ Продать · ${fmt(total)}`}
+                  {loading ? 'Оформление...' : `✓ Продать · ${fmt(finalTotal)}`}
                 </button>
               </div>
             )}
@@ -197,7 +336,7 @@ export default function SalesPage() {
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Дата</th><th>Товары</th><th>Сумма</th><th>Прибыль</th><th></th></tr>
+                  <tr><th>Дата</th><th>Товары</th><th>Сумма</th><th>Скидка</th><th>Прибыль</th><th></th></tr>
                 </thead>
                 <tbody>
                   {sales.map(s => (
@@ -210,6 +349,9 @@ export default function SalesPage() {
                           ))}
                         </td>
                         <td className="mono text-green" style={{ fontWeight: 700 }}>{fmt(s.total_amount)}</td>
+                        <td className="mono" style={{ color: s.discount > 0 ? 'var(--red)' : 'var(--text3)', fontSize: 13 }}>
+                          {s.discount > 0 ? `−${fmt(s.discount)}` : '—'}
+                        </td>
                         <td className="mono" style={{ color: 'var(--yellow)' }}>{fmt(s.total_profit)}</td>
                         <td>
                           <button className="btn btn-danger btn-sm" onClick={() => cancelSale(s.id)}>Отменить</button>

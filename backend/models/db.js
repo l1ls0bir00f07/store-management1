@@ -3,11 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
-// On Railway: mount a persistent volume at /data
-// Locally: use backend/database/
-const DATA_DIR = process.env.DATA_DIR
-  || path.join(__dirname, '../database');
-
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '../database');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const DB_PATH     = path.join(DATA_DIR, 'store.db');
@@ -36,15 +32,24 @@ async function initDb() {
 
   _db.run(fs.readFileSync(SCHEMA_PATH, 'utf8'));
 
+  // Migration: add discount column if missing (for existing databases)
+  try {
+    _db.run('ALTER TABLE sales ADD COLUMN discount REAL DEFAULT 0');
+    _dirty = true;
+    console.log('✅ Migration: added discount column');
+  } catch (e) {
+    // Column already exists — that's fine
+  }
+
   const has = _db.exec("SELECT id FROM users WHERE username='admin'");
   if (!has.length || !has[0].values.length) {
     _db.run('INSERT INTO users (username, password_hash) VALUES (?, ?)',
             ['admin', bcrypt.hashSync('admin123', 10)]);
     _dirty = true;
-    saveDb();
     console.log('✅ Default admin: admin / admin123');
   }
 
+  saveDb();
   setInterval(saveDb, 2000);
   console.log(`✅ DB ready at ${DB_PATH}`);
 }

@@ -5,7 +5,7 @@ const auth = require('../middleware/auth');
 
 router.get('/', auth, (req, res) => {
   const { from, to } = req.query;
-  let sql = `SELECT id, total_amount, total_profit, sale_date FROM sales WHERE 1=1`;
+  let sql = `SELECT id, total_amount, total_profit, discount, sale_date FROM sales WHERE 1=1`;
   const params = [];
   if (from) { sql += ` AND date(sale_date) >= date(?)`; params.push(from); }
   if (to)   { sql += ` AND date(sale_date) <= date(?)`; params.push(to); }
@@ -32,11 +32,13 @@ router.get('/:id', auth, (req, res) => {
 });
 
 router.post('/', auth, (req, res) => {
-  const { items } = req.body;
+  const { items, discount = 0 } = req.body;
   if (!items || !items.length) return res.status(400).json({ error: 'Корзина пуста' });
 
+  const discountAmount = Math.max(0, parseFloat(discount) || 0);
+
   const createSale = db.transaction(() => {
-    let total = 0, profit = 0;
+    let rawTotal = 0, profit = 0;
     const resolved = [];
 
     for (const item of items) {
@@ -44,12 +46,18 @@ router.post('/', auth, (req, res) => {
       if (!product) throw { status: 400, error: `Товар #${item.product_id} не найден` };
       if (product.quantity_in_stock < item.quantity)
         throw { status: 400, error: `Недостаточно "${product.name}" на складе (есть: ${product.quantity_in_stock})` };
-      total  += product.selling_price * item.quantity;
-      profit += (product.selling_price - product.purchase_price) * item.quantity;
+      rawTotal += product.selling_price * item.quantity;
+      profit   += (product.selling_price - product.purchase_price) * item.quantity;
       resolved.push({ product, quantity: item.quantity });
     }
 
-    const info = db.prepare('INSERT INTO sales (total_amount, total_profit) VALUES (?, ?)').run(total, profit);
+    if (discountAmount > rawTotal)
+      throw { status: 400, error: `Скидка (${discountAmount}) не может быть больше суммы (${rawTotal})` };
+
+    const total = rawTotal - discountAmount;
+    const finalProfit = profit - discountAmount; // скидка бьёт по прибыли
+
+    const info = db.prepare('INSERT INTO sales (total_amount, total_profit, discount) VALUES (?, ?, ?)').run(total, finalProfit, discountAmount);
     const saleId = info.lastInsertRowid;
 
     for (const { product, quantity } of resolved) {

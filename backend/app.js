@@ -22,6 +22,7 @@ initDb().then(async () => {
   app.use('/api/products',   require('./routes/products'));
   app.use('/api/sales',      require('./routes/sales'));
   app.use('/api/reports',    require('./routes/reports'));
+  app.use('/api/qrcodes',    require('./routes/qrcodes'));
 
   // Serve React frontend (built static files)
   // In Railway: frontend is built before start, lives at ../frontend/build

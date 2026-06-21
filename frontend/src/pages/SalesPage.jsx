@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { productsApi, salesApi } from '../services/api';
 import { useToast } from '../hooks/useToast';
 import ToastContainer from '../components/common/Toast';
+import QRScannerModal from '../components/common/QRScannerModal';
 
 const fmt = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
 
@@ -105,6 +106,7 @@ export default function SalesPage() {
   const [historyTo, setHistoryTo]       = useState('');
   const [discount, setDiscount]         = useState(0);
   const [showDiscount, setShowDiscount] = useState(false);
+  const [showScanner, setShowScanner]   = useState(false);
   const { toasts, success, error }      = useToast();
 
   const loadProducts = useCallback(() => {
@@ -130,6 +132,29 @@ export default function SalesPage() {
       }
       return [...prev, { product_id: product.id, name: product.name, price: product.selling_price, purchase_price: product.purchase_price, max: product.quantity_in_stock, quantity: 1 }];
     });
+  };
+
+  // Called by QRScannerModal whenever a QR code is decoded.
+  // Re-fetches the product from the server (not just trusting the QR payload)
+  // so price/stock changes since the QR was printed are always respected.
+  const handleQRScan = async (payload, { onSuccess, onError }) => {
+    try {
+      const res = await productsApi.getOne(payload.id);
+      const product = res.data;
+      if (!product) { onError('Товар не найден в базе'); return; }
+      if (product.quantity_in_stock <= 0) { onError(`«${product.name}» — нет в наличии`); return; }
+
+      const inCartQty = cart.find(i => i.product_id === product.id)?.quantity || 0;
+      if (inCartQty >= product.quantity_in_stock) {
+        onError(`«${product.name}» — достигнут максимум на складе`);
+        return;
+      }
+
+      addToCart(product);
+      onSuccess(product.name);
+    } catch (e) {
+      onError(e.response?.data?.error || 'Товар не найден');
+    }
   };
 
   const updateQty = (product_id, qty) => {
@@ -177,6 +202,12 @@ export default function SalesPage() {
           onClose={() => setShowDiscount(false)}
         />
       )}
+      {showScanner && (
+        <QRScannerModal
+          onClose={() => setShowScanner(false)}
+          onScan={handleQRScan}
+        />
+      )}
 
       <div className="page-header">
         <div className="page-title">Продажа</div>
@@ -198,9 +229,14 @@ export default function SalesPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'start' }}>
           {/* Product catalog */}
           <div>
-            <input className="form-input" placeholder="🔍 Поиск товара..."
-              value={search} onChange={e => setSearch(e.target.value)}
-              style={{ marginBottom: 16 }} />
+            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+              <input className="form-input" placeholder="🔍 Поиск товара..."
+                value={search} onChange={e => setSearch(e.target.value)}
+                style={{ flex: 1 }} />
+              <button className="btn btn-primary" onClick={() => setShowScanner(true)} style={{ whiteSpace: 'nowrap' }}>
+                📷 Сканировать QR
+              </button>
+            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
               {products.filter(p => p.quantity_in_stock > 0).map(p => (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { productsApi, categoriesApi } from '../services/api';
+import { productsApi, categoriesApi, qrApi } from '../services/api';
 import { useToast } from '../hooks/useToast';
 import ToastContainer from '../components/common/Toast';
 
@@ -146,6 +146,7 @@ export default function InventoryPage() {
   const [showCatModal, setShowCatModal] = useState(false);
   const [editCategory, setEditCategory] = useState(null);
   const [activeTab, setActiveTab] = useState('products');
+  const [bulkQrLoading, setBulkQrLoading] = useState(false);
   const { toasts, success, error } = useToast();
 
   const load = useCallback(async () => {
@@ -172,12 +173,34 @@ export default function InventoryPage() {
     catch (e) { error(e.response?.data?.error || 'Ошибка'); }
   };
 
+  const handleDownloadQR = async (id, name) => {
+    try {
+      await qrApi.downloadOne(id, `qrcode_${name}.png`);
+      success(`QR-код для "${name}" скачан`);
+    } catch (e) { error('Не удалось скачать QR-код'); }
+  };
+
+  const handleDownloadAllQR = async () => {
+    setBulkQrLoading(true);
+    try {
+      await qrApi.downloadBulk(filterCat || null);
+      success(`QR-коды скачаны (${filterCat ? 'по категории' : 'все товары'})`);
+    } catch (e) {
+      error(e.response?.data?.error || 'Не удалось скачать QR-коды');
+    } finally {
+      setBulkQrLoading(false);
+    }
+  };
+
   return (
     <div>
       <ToastContainer toasts={toasts} />
       <div className="page-header">
         <div className="page-title">Товары</div>
         <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-ghost" onClick={handleDownloadAllQR} disabled={bulkQrLoading}>
+            {bulkQrLoading ? 'Генерация...' : `🔲 Скачать все QR${filterCat ? ' (по категории)' : ''}`}
+          </button>
           <button className="btn btn-ghost" onClick={() => { setEditCategory(null); setShowCatModal(true); }}>+ Категория</button>
           <button className="btn btn-primary" onClick={() => { setEditProduct(null); setShowProductModal(true); }}>+ Товар</button>
         </div>
@@ -253,6 +276,7 @@ export default function InventoryPage() {
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: 6 }}>
+                              <button className="btn btn-ghost btn-sm" title="Скачать QR-код" onClick={() => handleDownloadQR(p.id, p.name)}>🔲</button>
                               <button className="btn btn-ghost btn-sm" onClick={() => { setEditProduct(p); setShowProductModal(true); }}>✎</button>
                               <button className="btn btn-danger btn-sm" onClick={() => handleDeleteProduct(p.id, p.name)}>✕</button>
                             </div>

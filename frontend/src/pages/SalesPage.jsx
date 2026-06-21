@@ -3,6 +3,7 @@ import { productsApi, salesApi } from '../services/api';
 import { useToast } from '../hooks/useToast';
 import ToastContainer from '../components/common/Toast';
 import QRScannerModal from '../components/common/QRScannerModal';
+import QRScannerErrorBoundary from '../components/common/QRScannerErrorBoundary';
 
 const fmt = (n) => new Intl.NumberFormat('ru-RU').format(Math.round(n || 0));
 
@@ -203,10 +204,12 @@ export default function SalesPage() {
         />
       )}
       {showScanner && (
-        <QRScannerModal
-          onClose={() => setShowScanner(false)}
-          onScan={handleQRScan}
-        />
+        <QRScannerErrorBoundary onClose={() => setShowScanner(false)}>
+          <QRScannerModal
+            onClose={() => setShowScanner(false)}
+            onScan={handleQRScan}
+          />
+        </QRScannerErrorBoundary>
       )}
 
       <div className="page-header">

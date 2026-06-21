@@ -9,6 +9,7 @@ export default function QRScannerModal({ onClose, onScan }) {
   const [status, setStatus] = useState('starting'); // starting | running | error
   const [errorMsg, setErrorMsg] = useState('');
   const [lastResult, setLastResult] = useState(null); // { name, ok } for visual feedback
+  const [isClosing, setIsClosing] = useState(false);
 
   const handleDecodedText = useCallback((decodedText) => {
     const now = Date.now();
@@ -65,25 +66,51 @@ export default function QRScannerModal({ onClose, onScan }) {
 
     return () => {
       isMounted = false;
-      if (scannerRef.current) {
-        scannerRef.current.stop().then(() => scannerRef.current.clear()).catch(() => {});
+      const scanner = scannerRef.current;
+      scannerRef.current = null;
+      if (scanner) {
+        (async () => {
+          try {
+            if (typeof scanner.getState === 'function' && scanner.getState() === 2) {
+              await scanner.stop();
+            }
+            await scanner.clear();
+          } catch (e) {
+            console.warn('Сканер: ошибка при очистке (безопасно игнорируется):', e);
+          }
+        })();
       }
     };
   }, [handleDecodedText]);
 
-  const handleClose = () => {
-    if (scannerRef.current) {
-      scannerRef.current.stop().then(() => scannerRef.current.clear()).catch(() => {});
+  const handleClose = async () => {
+    if (isClosing) return; // ignore extra taps while we're already shutting down the camera
+    setIsClosing(true);
+    const scanner = scannerRef.current;
+    scannerRef.current = null; // prevent double-stop from cleanup effect racing with this
+    if (scanner) {
+      try {
+        // getState() === 2 means SCANNING; only stop if actually running,
+        // calling stop() on an already-stopped/never-started scanner throws.
+        if (typeof scanner.getState === 'function' && scanner.getState() === 2) {
+          await scanner.stop();
+        }
+        await scanner.clear();
+      } catch (e) {
+        // html5-qrcode can throw if the camera/DOM was already torn down —
+        // this must never propagate, or it unmounts the whole React tree.
+        console.warn('Сканер: ошибка при остановке (безопасно игнорируется):', e);
+      }
     }
     onClose();
   };
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && handleClose()}>
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && !isClosing && handleClose()}>
       <div className="modal" style={{ maxWidth: 480 }}>
         <div className="modal-header">
           <div className="modal-title">📷 Сканировать QR-код товара</div>
-          <button className="btn btn-ghost btn-sm" onClick={handleClose}>✕</button>
+          <button className="btn btn-ghost btn-sm" onClick={handleClose} disabled={isClosing}>✕</button>
         </div>
 
         {status === 'error' && (
@@ -120,7 +147,9 @@ export default function QRScannerModal({ onClose, onScan }) {
         </p>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-          <button className="btn btn-primary" onClick={handleClose}>Готово</button>
+          <button className="btn btn-primary" onClick={handleClose} disabled={isClosing}>
+            {isClosing ? 'Закрытие камеры...' : 'Готово'}
+          </button>
         </div>
       </div>
     </div>

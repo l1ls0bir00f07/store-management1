@@ -2,6 +2,18 @@ const express = require('express');
 const router = express.Router();
 const { wrapper: db } = require('../models/db');
 const auth = require('../middleware/auth');
+const { requireAdmin } = auth;
+
+// Cashier accounts must never see profit figures — strip total_profit (and
+// each item's unit_cost, which would reveal cost price) before responding.
+function hideProfitFromCashier(sale, role) {
+  if (!sale || role === 'admin') return sale;
+  const { total_profit, ...safeSale } = sale;
+  if (Array.isArray(safeSale.items)) {
+    safeSale.items = safeSale.items.map(({ unit_cost, ...item }) => item);
+  }
+  return safeSale;
+}
 
 router.get('/', auth, (req, res) => {
   const { from, to } = req.query;
@@ -21,14 +33,14 @@ router.get('/', auth, (req, res) => {
       WHERE si.sale_id = ?
     `).all(s.id)
   }));
-  res.json(result);
+  res.json(result.map(s => hideProfitFromCashier(s, req.user.role)));
 });
 
 router.get('/:id', auth, (req, res) => {
   const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(req.params.id);
   if (!sale) return res.status(404).json({ error: 'Продажа не найдена' });
   sale.items = db.prepare(`SELECT si.*, COALESCE(p.name, si.product_name) as product_name FROM sale_items si LEFT JOIN products p ON p.id = si.product_id WHERE si.sale_id = ?`).all(sale.id);
-  res.json(sale);
+  res.json(hideProfitFromCashier(sale, req.user.role));
 });
 
 router.post('/', auth, (req, res) => {
@@ -71,14 +83,16 @@ router.post('/', auth, (req, res) => {
   });
 
   try {
-    res.status(201).json(createSale());
+    res.status(201).json(hideProfitFromCashier(createSale(), req.user.role));
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.error });
     throw e;
   }
 });
 
-router.delete('/:id', auth, (req, res) => {
+// Cancelling a sale reverses stock and deletes the record — a manager-level
+// action, so it's restricted to admin to prevent unsupervised stock/fraud issues.
+router.delete('/:id', auth, requireAdmin, (req, res) => {
   const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(req.params.id);
   if (!sale) return res.status(404).json({ error: 'Продажа не найдена' });
 

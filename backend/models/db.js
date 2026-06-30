@@ -49,6 +49,14 @@ async function initDb() {
     console.log('✅ Default admin: admin / admin123');
   }
 
+  const hasCashier = _db.exec("SELECT id FROM users WHERE username='cashier'");
+  if (!hasCashier.length || !hasCashier[0].values.length) {
+    _db.run('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)',
+            ['cashier', bcrypt.hashSync('cashier123', 10), 'cashier']);
+    _dirty = true;
+    console.log('✅ Default cashier: cashier / cashier123');
+  }
+
   saveDb();
   setInterval(saveDb, 2000);
   console.log(`✅ DB ready at ${DB_PATH}`);

@@ -7,20 +7,10 @@ import DashboardPage from './pages/DashboardPage';
 import InventoryPage from './pages/InventoryPage';
 import SalesPage from './pages/SalesPage';
 import ReportsPage from './pages/ReportsPage';
-import ProfilePage from './pages/ProfilePage';
-import './index.css';
 
 function PrivateRoute({ children }) {
   const { isAuth } = useAuth();
   return isAuth ? children : <Navigate to="/login" replace />;
-}
-
-// Guards admin-only pages against direct URL access — hiding the sidebar tab
-// alone isn't enough, since a cashier could still type /inventory in the bar.
-function AdminRoute({ children }) {
-  const { isAuth, isAdmin } = useAuth();
-  if (!isAuth) return <Navigate to="/login" replace />;
-  return isAdmin ? children : <Navigate to="/dashboard" replace />;
 }
 
 export default function App() {
@@ -32,10 +22,9 @@ export default function App() {
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="inventory" element={<AdminRoute><InventoryPage /></AdminRoute>} />
+            <Route path="inventory" element={<InventoryPage />} />
             <Route path="sales" element={<SalesPage />} />
-            <Route path="reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
-            <Route path="profile" element={<AdminRoute><ProfilePage /></AdminRoute>} />
+            <Route path="reports" element={<ReportsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

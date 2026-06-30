@@ -5,6 +5,14 @@ const path = require('path');
 const fs = require('fs');
 const { wrapper: db } = require('../models/db');
 const auth = require('../middleware/auth');
+const { requireAdmin } = auth;
+
+// Cashier accounts must never see cost price — strip it out before sending the response.
+function hideCostFromCashier(product, role) {
+  if (!product || role === 'admin') return product;
+  const { purchase_price, ...safe } = product;
+  return safe;
+}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
@@ -20,16 +28,17 @@ router.get('/', auth, (req, res) => {
   if (category_id) { sql += ` AND p.category_id = ?`; params.push(category_id); }
   if (low_stock === 'true') { sql += ` AND p.quantity_in_stock <= 5`; }
   sql += ` ORDER BY p.name`;
-  res.json(db.prepare(sql).all(...params));
+  const rows = db.prepare(sql).all(...params);
+  res.json(rows.map(p => hideCostFromCashier(p, req.user.role)));
 });
 
 router.get('/:id', auth, (req, res) => {
   const p = db.prepare(`SELECT p.*, c.name as category_name FROM products p LEFT JOIN categories c ON c.id = p.category_id WHERE p.id = ?`).get(req.params.id);
   if (!p) return res.status(404).json({ error: 'Товар не найден' });
-  res.json(p);
+  res.json(hideCostFromCashier(p, req.user.role));
 });
 
-router.post('/', auth, upload.single('photo'), (req, res) => {
+router.post('/', auth, requireAdmin, upload.single('photo'), (req, res) => {
   const { name, sku, category_id, purchase_price, selling_price, quantity_in_stock, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Название обязательно' });
   const photo_url = req.file ? `/uploads/${req.file.filename}` : null;
@@ -43,7 +52,7 @@ router.post('/', auth, upload.single('photo'), (req, res) => {
   }
 });
 
-router.put('/:id', auth, upload.single('photo'), (req, res) => {
+router.put('/:id', auth, requireAdmin, upload.single('photo'), (req, res) => {
   const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Товар не найден' });
   const { name, sku, category_id, purchase_price, selling_price, quantity_in_stock, description } = req.body;
@@ -62,7 +71,7 @@ router.put('/:id', auth, upload.single('photo'), (req, res) => {
   }
 });
 
-router.delete('/:id', auth, (req, res) => {
+router.delete('/:id', auth, requireAdmin, (req, res) => {
   const p = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
   if (!p) return res.status(404).json({ error: 'Товар не найден' });
   if (p.photo_url) { const f = path.join(__dirname, '..', p.photo_url); if (fs.existsSync(f)) fs.unlinkSync(f); }

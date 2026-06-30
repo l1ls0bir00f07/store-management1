@@ -4,18 +4,16 @@ import { useAuth } from '../../context/AuthContext';
 
 const navItems = [
   { to: '/dashboard', icon: '◉', label: 'Дашборд' },
-  { to: '/inventory', icon: '⬡', label: 'Товары', adminOnly: true },
+  { to: '/inventory', icon: '⬡', label: 'Товары' },
   { to: '/sales', icon: '⚡', label: 'Продажа' },
-  { to: '/reports', icon: '◈', label: 'Отчёты', adminOnly: true },
-  { to: '/profile', icon: '👤', label: 'Профиль', adminOnly: true },
+  { to: '/reports', icon: '◈', label: 'Отчёты' },
 ];
 
 export default function Layout() {
-  const { username, isAdmin, logout } = useAuth();
+  const { username, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => { logout(); navigate('/login'); };
-  const visibleItems = navItems.filter(item => !item.adminOnly || isAdmin);
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
@@ -32,7 +30,7 @@ export default function Layout() {
         </div>
 
         <nav style={{ flex: 1, padding: '12px 10px' }}>
-          {visibleItems.map(({ to, icon, label }) => (
+          {navItems.map(({ to, icon, label }) => (
             <NavLink key={to} to={to} style={({ isActive }) => ({
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '10px 14px', borderRadius: 'var(--radius-sm)',
@@ -49,13 +47,8 @@ export default function Layout() {
         </nav>
 
         <div style={{ padding: '16px', borderTop: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 2 }}>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8 }}>
             👤 {username}
-          </div>
-          <div style={{ marginBottom: 8 }}>
-            {isAdmin
-              ? <span className="badge badge-blue" style={{ fontSize: 10 }}>Администратор</span>
-              : <span className="badge badge-yellow" style={{ fontSize: 10 }}>Кассир</span>}
           </div>
           <button className="btn btn-ghost btn-sm" onClick={handleLogout} style={{ width: '100%', justifyContent: 'center' }}>
             Выйти

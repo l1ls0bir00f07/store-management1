@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { productsApi, salesApi } from '../services/api';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../context/AuthContext';
 import ToastContainer from '../components/common/Toast';
 import QRScannerModal from '../components/common/QRScannerModal';
 import QRScannerErrorBoundary from '../components/common/QRScannerErrorBoundary';
@@ -97,6 +98,7 @@ function DiscountModal({ total, discount, onApply, onClose }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function SalesPage() {
+  const { isAdmin } = useAuth();
   const [products, setProducts]         = useState([]);
   const [sales, setSales]               = useState([]);
   const [cart, setCart]                 = useState([]);
@@ -333,10 +335,12 @@ export default function SalesPage() {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-                  <span style={{ color: 'var(--text3)', fontSize: 12 }}>Прибыль:</span>
-                  <span className="mono" style={{ fontSize: 13, color: totalProfit >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmt(totalProfit)}</span>
-                </div>
+                {isAdmin && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <span style={{ color: 'var(--text3)', fontSize: 12 }}>Прибыль:</span>
+                    <span className="mono" style={{ fontSize: 13, color: totalProfit >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmt(totalProfit)}</span>
+                  </div>
+                )}
 
                 {/* Discount button */}
                 <button
@@ -375,7 +379,11 @@ export default function SalesPage() {
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Дата</th><th>Товары</th><th>Сумма</th><th>Скидка</th><th>Прибыль</th><th></th></tr>
+                  <tr>
+                    <th>Дата</th><th>Товары</th><th>Сумма</th><th>Скидка</th>
+                    {isAdmin && <th>Прибыль</th>}
+                    {isAdmin && <th></th>}
+                  </tr>
                 </thead>
                 <tbody>
                   {sales.map(s => (
@@ -391,10 +399,12 @@ export default function SalesPage() {
                         <td className="mono" style={{ color: s.discount > 0 ? 'var(--red)' : 'var(--text3)', fontSize: 13 }}>
                           {s.discount > 0 ? `−${fmt(s.discount)}` : '—'}
                         </td>
-                        <td className="mono" style={{ color: 'var(--yellow)' }}>{fmt(s.total_profit)}</td>
-                        <td>
-                          <button className="btn btn-danger btn-sm" onClick={() => cancelSale(s.id)}>Отменить</button>
-                        </td>
+                        {isAdmin && <td className="mono" style={{ color: 'var(--yellow)' }}>{fmt(s.total_profit)}</td>}
+                        {isAdmin && (
+                          <td>
+                            <button className="btn btn-danger btn-sm" onClick={() => cancelSale(s.id)}>Отменить</button>
+                          </td>
+                        )}
                       </tr>
                     </React.Fragment>
                   ))}

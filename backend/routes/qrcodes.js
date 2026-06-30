@@ -4,6 +4,7 @@ const QRCode = require('qrcode');
 const archiver = require('archiver');
 const { wrapper: db } = require('../models/db');
 const auth = require('../middleware/auth');
+const { requireAdmin } = auth;
 
 // Builds the JSON payload encoded inside each product's QR code.
 // Keeping it small matters: smaller payload = denser-readable QR at small print sizes.
@@ -30,7 +31,7 @@ function contentDispositionHeader(filename) {
 }
 
 // GET /api/qrcodes/:id  → single PNG for one product
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', auth, requireAdmin, async (req, res) => {
   const product = db.prepare('SELECT id, name, sku FROM products WHERE id = ?').get(req.params.id);
   if (!product) return res.status(404).json({ error: 'Товар не найден' });
 
@@ -55,7 +56,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // GET /api/qrcodes/bulk/all?category_id=  → ZIP with QR PNGs for all (or filtered) products
-router.get('/bulk/all', auth, async (req, res) => {
+router.get('/bulk/all', auth, requireAdmin, async (req, res) => {
   const { category_id } = req.query;
   let sql = 'SELECT id, name, sku FROM products WHERE 1=1';
   const params = [];

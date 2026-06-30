@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { wrapper: db } = require('../models/db');
 const auth = require('../middleware/auth');
+const { requireAdmin } = auth;
 
 router.get('/dashboard', auth, (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
@@ -30,7 +31,7 @@ router.get('/dashboard', auth, (req, res) => {
   res.json({ totalProducts, totalStock, lowStockCount, today: todayStats, month: monthStats, last7Days, topProductsToday });
 });
 
-router.get('/sales', auth, (req, res) => {
+router.get('/sales', auth, requireAdmin, (req, res) => {
   const { from, to, group_by = 'day' } = req.query;
   let groupExpr = group_by === 'month' ? `strftime('%Y-%m', sale_date)` : group_by === 'year' ? `strftime('%Y', sale_date)` : `date(sale_date)`;
 
@@ -50,7 +51,7 @@ router.get('/sales', auth, (req, res) => {
   res.json({ summary, data });
 });
 
-router.get('/top-products', auth, (req, res) => {
+router.get('/top-products', auth, requireAdmin, (req, res) => {
   const { from, to, limit = 10 } = req.query;
   let sql = `SELECT si.product_name as name, SUM(si.quantity_sold) as total_qty, SUM(si.unit_price * si.quantity_sold) as total_revenue, SUM((si.unit_price - si.unit_cost) * si.quantity_sold) as total_profit FROM sale_items si JOIN sales s ON s.id = si.sale_id WHERE 1=1`;
   const params = [];

@@ -15,7 +15,7 @@ export default function LoginPage() {
     setLoading(true); setError('');
     try {
       const res = await authApi.login(form);
-      login(res.data.token, res.data.username, res.data.role);
+      login(res.data.token, res.data.username);
       navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Ошибка входа');
@@ -67,6 +67,10 @@ export default function LoginPage() {
             {loading ? 'Вход...' : 'Войти'}
           </button>
         </form>
+
+        <p style={{ color: 'var(--text3)', fontSize: 11, textAlign: 'center', marginTop: 20 }}>
+          По умолчанию: admin / admin123
+        </p>
       </div>
     </div>
   );

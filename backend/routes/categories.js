@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { wrapper: db } = require('../models/db');
 const auth = require('../middleware/auth');
+const { requireAdmin } = auth;
 
-router.get('/', auth, (req, res) => {
+router.get('/', auth, requireAdmin, (req, res) => {
   const rows = db.prepare(`
     SELECT c.id, c.name, c.description, c.created_at,
            COUNT(p.id) as product_count
@@ -15,7 +16,7 @@ router.get('/', auth, (req, res) => {
   res.json(rows);
 });
 
-router.post('/', auth, (req, res) => {
+router.post('/', auth, requireAdmin, (req, res) => {
   const { name, description } = req.body;
   if (!name) return res.status(400).json({ error: 'Название обязательно' });
   const info = db.prepare('INSERT INTO categories (name, description) VALUES (?, ?)').run(name, description || null);
@@ -23,13 +24,13 @@ router.post('/', auth, (req, res) => {
   res.status(201).json(created);
 });
 
-router.put('/:id', auth, (req, res) => {
+router.put('/:id', auth, requireAdmin, (req, res) => {
   const { name, description } = req.body;
   db.prepare('UPDATE categories SET name = ?, description = ? WHERE id = ?').run(name, description || null, req.params.id);
   res.json(db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id));
 });
 
-router.delete('/:id', auth, (req, res) => {
+router.delete('/:id', auth, requireAdmin, (req, res) => {
   db.prepare('UPDATE products SET category_id = NULL WHERE category_id = ?').run(req.params.id);
   db.prepare('DELETE FROM categories WHERE id = ?').run(req.params.id);
   res.json({ success: true });

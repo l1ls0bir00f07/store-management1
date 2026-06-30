@@ -5,39 +5,23 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [username, setUsername] = useState(localStorage.getItem('username'));
-  const [role, setRole] = useState(localStorage.getItem('role'));
 
-  const login = (tok, user, userRole) => {
+  const login = (tok, user) => {
     localStorage.setItem('token', tok);
     localStorage.setItem('username', user);
-    localStorage.setItem('role', userRole || '');
     setToken(tok);
     setUsername(user);
-    setRole(userRole || '');
-  };
-
-  // Used after a profile update (username change) to keep the sidebar in sync
-  // without forcing the person to log in again.
-  const updateProfile = (newUsername) => {
-    localStorage.setItem('username', newUsername);
-    setUsername(newUsername);
   };
 
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('username');
-    localStorage.removeItem('role');
     setToken(null);
     setUsername(null);
-    setRole(null);
   };
 
   return (
-    <AuthContext.Provider value={{
-      token, username, role, login, logout, updateProfile,
-      isAuth: !!token,
-      isAdmin: role === 'admin'
-    }}>
+    <AuthContext.Provider value={{ token, username, login, logout, isAuth: !!token }}>
       {children}
     </AuthContext.Provider>
   );
